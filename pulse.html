@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Случайный пульс PRO+ Mods + PPG Scanner</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0b1220;
+      color: white;
+      text-align: center;
+      padding-top: 20px;
+      overflow:hidden;
+    }
+
+    h1 { margin-bottom: 5px; }
+
+    #pulse {
+      font-size: 90px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+
+    button {
+      font-size: 13px;
+      padding: 9px 12px;
+      margin: 5px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    #start { background:#22c55e; color:white; }
+    #stop { background:#ef4444; color:white; }
+    #measure { background:#f97316; color:white; }
+
+    .mode { background:#334155; color:white; }
+    .doctor { background:#3b82f6; color:white; }
+    .modbtn { background:#a855f7; color:white; }
+
+    .status-container {
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .status { display:flex; flex-direction:column; align-items:center; }
+
+    .circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      margin-bottom: 5px;
+      transition: 0.3s;
+    }
+
+    .green { background:#22c55e; }
+    .yellow { background:#eab308; }
+    .red { background:#ef4444; }
+
+    canvas { margin-top: 12px; background:#020617; border-radius:12px; }
+
+    video { display:none; }
+
+    .modPanel {
+      margin-top: 10px;
+      display: none;
+      gap: 5px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .modPanel input {
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      width: 240px;
+    }
+
+    .mods {
+      margin-top: 10px;
+      font-size: 12px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      background:#0f172a;
+      padding: 8px;
+      border-radius: 10px;
+      text-align:left;
+    }
+
+    #cameraOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,0,0,0);
+      pointer-events:none;
+      transition:0.3s;
+    }
+
+    #cameraOverlay.active {
+      background: rgba(255,0,0,0.15);
+      box-shadow: inset 0 0 120px red;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% {opacity:0.3}
+      50% {opacity:0.8}
+      100% {opacity:0.3}
+    }
+  </style>
+</head>
+<body>
+
+<h1>🫀 Случайный пульс PRO+ + PPG Scanner</h1>
+
+<div id="pulse">--</div>
+
+<div>
+  <button id="start">Старт</button>
+  <button id="stop">Стоп</button>
+  <button class="mode" onclick="setMode('rest')">Спокойствие</button>
+  <button class="mode" onclick="setMode('stress')">Стресс</button>
+  <button class="mode" onclick="setMode('sport')">Спорт</button>
+  <button class="doctor" onclick="doctorHelp()">Врач</button>
+  <button class="modbtn" onclick="toggleModPanel()">Добавить мод</button>
+  <button id="measure">📷 Измерить пульс</button>
+</div>
+
+<div class="modPanel" id="modPanel">
+  <input id="modInput" placeholder="Моды: хаос, быстро, медленно..." />
+  <button onclick="addMod()">Применить</button>
+</div>
+
+<canvas id="ecg" width="500" height="120"></canvas>
+
+<div class="status-container">
+  <div class="status"><div id="arrhythmia" class="circle green"></div><div>Аритмия</div></div>
+  <div class="status"><div id="bradycardia" class="circle green"></div><div>Брадикардия</div></div>
+  <div class="status"><div id="tachycardia" class="circle green"></div><div>Тахикардия</div></div>
+</div>
+
+<div class="mods">
+<b>Моды:</b>
+<div id="modList">нет</div>
+</div>
+
+<div id="cameraOverlay"></div>
+<video id="video" autoplay playsinline></video>
+
+<script>
+let interval;
+let mode="rest";
+let lastPulse=75;
+let mods=[];
+let cameraInterval;
+
+const pulseEl=document.getElementById("pulse");
+const overlay=document.getElementById("cameraOverlay");
+const video=document.getElementById("video");
+const modList=document.getElementById("modList");
+const modInput=document.getElementById("modInput");
+const modPanel=document.getElementById("modPanel");
+const arr=document.getElementById("arrhythmia");
+const brady=document.getElementById("bradycardia");
+const tachy=document.getElementById("tachycardia");
+
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function setMode(m){mode=m;}
+function doctorHelp(){mode="rest";alert("Стабилизация пациента");}
+
+function toggleModPanel(){modPanel.style.display=modPanel.style.display==="flex"?"none":"flex";}
+
+function addMod(){
+  let m=modInput.value;
+  if(!m||!m.trim()) return;
+  mods.push(m.toLowerCase());
+  modInput.value="";
+  modList.innerHTML=mods.join(", ");
+}
+
+function has(...k){return mods.some(m=>k.some(x=>m.includes(x)));
+}
+
+function modEffect(v){
+  if(has("хаос")) v+=rand(-30,30);
+  if(has("быстр")) v+=10;
+  if(has("медлен")) v-=10;
+  return Math.max(40,Math.min(190,v));
+}
+
+function update(p){
+  brady.className="circle "+(p<60?"red":"green");
+  tachy.className="circle "+(p>100?"red":"green");
+  let d=Math.abs(p-lastPulse);
+  arr.className="circle "+(d>20?"red":d>10?"yellow":"green");
+  lastPulse=p;
+}
+
+function generate(){
+  let base=mode=="rest"?rand(60,80):mode=="stress"?rand(80,130):rand(100,160);
+  let p=modEffect(base);
+  pulseEl.textContent=p;
+  update(p);
+}
+
+function start(){if(interval) return;interval=setInterval(generate,5000);generate();}
+function stop(){clearInterval(interval);interval=null;}
+
+async function startCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
+    video.srcObject=stream;
+    overlay.classList.add("active");
+
+    let samples=[];
+
+    cameraInterval=setInterval(()=>{
+      const c=document.createElement("canvas");
+      c.width=80;c.height=80;
+      const ctx=c.getContext("2d");
+      ctx.drawImage(video,0,0,80,80);
+
+      let data=ctx.getImageData(0,0,80,80).data;
+      let r=0;
+      for(let i=0;i<data.length;i+=4) r+=data[i];
+
+      let avg=r/(data.length/4);
+      samples.push(avg);
+      if(samples.length>40) samples.shift();
+
+      let peaks=0;
+      for(let i=1;i<samples.length;i++) if(samples[i]>samples[i-1]) peaks++;
+
+      let bpm=Math.round(peaks*1.7);
+      if(bpm>40&&bpm<200){
+        pulseEl.textContent=bpm;
+        overlay.style.background=`rgba(255,0,0,${Math.min(0.35,bpm/400)})`;
+      }
+
+    },250);
+
+  }catch(e){alert("Нет камеры или требуется HTTPS");}
+}
+
+function stopCamera(){
+  clearInterval(cameraInterval);
+  overlay.classList.remove("active");
+  if(video.srcObject) video.srcObject.getTracks().forEach(t=>t.stop());
+}
+
+document.getElementById("start").onclick=start;
+document.getElementById("stop").onclick=stop;
+document.getElementById("measure").onclick=startCamera;
+</script>
+
+</body>
+</html>
