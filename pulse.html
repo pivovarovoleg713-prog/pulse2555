@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Pulse PRO REAL</title>
+<title>Pulse PRO FINAL</title>
 
 <link rel="manifest" href="manifest.json">
 
@@ -25,6 +25,23 @@ button{
   margin:5px;
   border:none;
   border-radius:10px;
+  cursor:pointer;
+}
+
+.green{background:#22c55e}
+.red{background:#ef4444}
+.yellow{background:#eab308}
+
+.circle{
+  width:25px;
+  height:25px;
+  border-radius:50%;
+  margin:auto;
+}
+
+.status{
+  display:inline-block;
+  margin:10px;
 }
 
 #cameraOverlay{
@@ -35,14 +52,8 @@ button{
 }
 
 #cameraOverlay.active{
-  background:rgba(255,0,0,0.6);
+  background:rgba(255,0,0,0.5);
 }
-
-.circle{width:25px;height:25px;border-radius:50%;margin:auto}
-.green{background:#22c55e}
-.yellow{background:#eab308}
-.red{background:#ef4444}
-.status{display:inline-block;margin:10px}
 
 video{display:none}
 </style>
@@ -50,11 +61,13 @@ video{display:none}
 
 <body>
 
-<h1>🫀 Pulse REAL (PPG)</h1>
+<h1>🫀 Pulse PRO FINAL</h1>
 <div id="pulse">--</div>
 
-<button onclick="startCamera()">📷 Измерить пульс</button>
-<button onclick="stopCamera()">Стоп</button>
+<button onclick="startAuto()">▶️ Старт</button>
+<button onclick="oneRandom()">🎲 Случайный пульс</button>
+<button onclick="startCamera()">📷 Свой пульс (ФПГ)</button>
+<button onclick="stopAll()">⛔ Стоп</button>
 <button id="installApp">📱 Установить</button>
 
 <div>
@@ -67,18 +80,17 @@ video{display:none}
 <video id="video" autoplay playsinline></video>
 
 <script>
+let autoInt;
 let camInt;
 let samples=[];
 let last=80;
-let measuring=false;
 
 const pulseEl=document.getElementById('pulse');
-const video=document.getElementById('video');
-const overlay=document.getElementById('cameraOverlay');
-
 const arr=document.getElementById('arr');
 const brady=document.getElementById('brady');
 const tachy=document.getElementById('tachy');
+const video=document.getElementById('video');
+const overlay=document.getElementById('cameraOverlay');
 
 // 📱 установка
 let deferredPrompt;
@@ -86,16 +98,13 @@ window.addEventListener('beforeinstallprompt',(e)=>{
   e.preventDefault();
   deferredPrompt=e;
 });
-
-document.getElementById('installApp').onclick=async ()=>{
-  if(deferredPrompt){
-    deferredPrompt.prompt();
-  }
+document.getElementById('installApp').onclick=()=>{
+  if(deferredPrompt) deferredPrompt.prompt();
 };
 
-// 🧠 состояния
+// 🎯 состояния
 function updateState(p){
-  let a='green',b='green',t='green';
+  let a='green', b='green', t='green';
 
   if(p<60) b='red';
   else if(p>=100) t='red';
@@ -111,18 +120,36 @@ function updateState(p){
   last=p;
 }
 
-// 📷 PPG
+// 🎲 случайный
+function rand(a,b){
+  return Math.floor(Math.random()*(b-a+1))+a;
+}
+
+function oneRandom(){
+  stopCamera();
+  let p=rand(50,160);
+  pulseEl.textContent=p;
+  updateState(p);
+}
+
+function startAuto(){
+  stopCamera();
+  if(autoInt) return;
+  autoInt=setInterval(oneRandom,5000);
+  oneRandom();
+}
+
+// 📷 ФПГ
 async function startCamera(){
+  stopAll();
+
   try{
     const stream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        facingMode:"environment" // задняя камера!
-      }
+      video:{facingMode:"environment"}
     });
 
     video.srcObject=stream;
     overlay.classList.add('active');
-    measuring=true;
     samples=[];
 
     camInt=setInterval(()=>{
@@ -145,7 +172,6 @@ async function startCamera(){
         samples.shift();
 
         let peaks=0;
-
         for(let i=2;i<samples.length;i++){
           if(samples[i-1]>samples[i-2] && samples[i-1]>samples[i]){
             peaks++;
@@ -167,15 +193,21 @@ async function startCamera(){
   }
 }
 
+// ⛔ стоп
 function stopCamera(){
-  measuring=false;
   clearInterval(camInt);
   overlay.classList.remove('active');
-
   if(video.srcObject){
     video.srcObject.getTracks().forEach(t=>t.stop());
   }
 }
+
+function stopAll(){
+  clearInterval(autoInt);
+  autoInt=null;
+  stopCamera();
+}
+
 </script>
 
 </body>
