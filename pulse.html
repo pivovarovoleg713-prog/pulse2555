@@ -2,22 +2,24 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Pulse PRO FINAL</title>
-
-<link rel="manifest" href="manifest.json">
+<title>Pulse PRO MED</title>
 
 <style>
 body{
   font-family:Arial;
-  background:#0b1220;
   color:#fff;
   text-align:center;
   padding:20px;
+
+  /* 🖼️ ФОН */
+  background: url("https://images.unsplash.com/photo-1588776814546-ec7e3d3a8c92") no-repeat center center fixed;
+  background-size: cover;
 }
 
 #pulse{
   font-size:80px;
   margin:10px;
+  text-shadow:0 0 10px red;
 }
 
 button{
@@ -28,16 +30,16 @@ button{
   cursor:pointer;
 }
 
-.green{background:#22c55e}
-.red{background:#ef4444}
-.yellow{background:#eab308}
-
 .circle{
   width:25px;
   height:25px;
   border-radius:50%;
   margin:auto;
 }
+
+.green{background:#22c55e}
+.yellow{background:#eab308}
+.red{background:#ef4444}
 
 .status{
   display:inline-block;
@@ -52,7 +54,7 @@ button{
 }
 
 #cameraOverlay.active{
-  background:rgba(255,0,0,0.5);
+  background:rgba(255,0,0,0.6);
 }
 
 video{display:none}
@@ -61,19 +63,18 @@ video{display:none}
 
 <body>
 
-<h1>馃珋 Pulse PRO FINAL</h1>
+<h1>🫀 Pulse PRO MED</h1>
 <div id="pulse">--</div>
 
-<button onclick="startAuto()">鈻讹笍 小褌邪褉褌</button>
-<button onclick="oneRandom()">馃幉 小谢褍褔邪泄薪褘泄 锌褍谢褜褋</button>
-<button onclick="startCamera()">馃摲 小胁芯泄 锌褍谢褜褋 (肖袩袚)</button>
-<button onclick="stopAll()">鉀� 小褌芯锌</button>
-<button id="installApp">馃摫 校褋褌邪薪芯胁懈褌褜</button>
+<button onclick="startAuto()">▶️ Старт</button>
+<button onclick="oneRandom()">🎲 Случайный</button>
+<button onclick="startCamera()">📷 Мой пульс (ФПГ)</button>
+<button onclick="stopAll()">⛔ Стоп</button>
 
 <div>
-<div class="status"><div id="arr" class="circle green"></div><div>袗褉懈褌屑懈褟</div></div>
-<div class="status"><div id="brady" class="circle green"></div><div>袘褉邪写懈泻邪褉写懈褟</div></div>
-<div class="status"><div id="tachy" class="circle green"></div><div>孝邪褏懈泻邪褉写懈褟</div></div>
+<div class="status"><div id="arr" class="circle green"></div><div>Аритмия</div></div>
+<div class="status"><div id="brady" class="circle green"></div><div>Брадикардия</div></div>
+<div class="status"><div id="tachy" class="circle green"></div><div>Тахикардия</div></div>
 </div>
 
 <div id="cameraOverlay"></div>
@@ -92,17 +93,7 @@ const tachy=document.getElementById('tachy');
 const video=document.getElementById('video');
 const overlay=document.getElementById('cameraOverlay');
 
-// 馃摫 褍褋褌邪薪芯胁泻邪
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt',(e)=>{
-  e.preventDefault();
-  deferredPrompt=e;
-});
-document.getElementById('installApp').onclick=()=>{
-  if(deferredPrompt) deferredPrompt.prompt();
-};
-
-// 馃幆 褋芯褋褌芯褟薪懈褟
+// 🎯 СОСТОЯНИЯ
 function updateState(p){
   let a='green', b='green', t='green';
 
@@ -120,7 +111,7 @@ function updateState(p){
   last=p;
 }
 
-// 馃幉 褋谢褍褔邪泄薪褘泄
+// 🎲 случайный
 function rand(a,b){
   return Math.floor(Math.random()*(b-a+1))+a;
 }
@@ -139,7 +130,7 @@ function startAuto(){
   oneRandom();
 }
 
-// 馃摲 肖袩袚
+// 📷 ФПГ (УЛУЧШЕННЫЙ)
 async function startCamera(){
   stopAll();
 
@@ -150,53 +141,70 @@ async function startCamera(){
 
     video.srcObject=stream;
     overlay.classList.add('active');
+
     samples=[];
 
     camInt=setInterval(()=>{
       const c=document.createElement('canvas');
-      c.width=50;c.height=50;
+      c.width=80;
+      c.height=80;
       const ctx=c.getContext('2d');
-      ctx.drawImage(video,0,0,50,50);
 
-      let d=ctx.getImageData(0,0,50,50).data;
+      ctx.drawImage(video,0,0,80,80);
+
+      let data=ctx.getImageData(0,0,80,80).data;
 
       let red=0;
-      for(let i=0;i<d.length;i+=4){
-        red+=d[i];
+      for(let i=0;i<data.length;i+=4){
+        red+=data[i];
       }
 
-      let avg=red/(d.length/4);
+      let avg=red/(data.length/4);
       samples.push(avg);
 
-      if(samples.length>50){
-        samples.shift();
+      // держим историю
+      if(samples.length>100){
+
+        // сглаживание
+        let smooth=[];
+        for(let i=1;i<samples.length;i++){
+          smooth.push((samples[i]+samples[i-1])/2);
+        }
 
         let peaks=0;
-        for(let i=2;i<samples.length;i++){
-          if(samples[i-1]>samples[i-2] && samples[i-1]>samples[i]){
+
+        for(let i=2;i<smooth.length;i++){
+          if(
+            smooth[i-1] > smooth[i-2] &&
+            smooth[i-1] > smooth[i] &&
+            smooth[i-1] > smooth[i-3]
+          ){
             peaks++;
           }
         }
 
-        let bpm=Math.round(peaks*1.6);
+        let bpm=Math.round(peaks * 1.5);
 
         if(bpm>40 && bpm<180){
           pulseEl.textContent=bpm;
           updateState(bpm);
         }
+
+        samples.shift();
       }
 
     },200);
 
   }catch(e){
-    alert("袣邪屑械褉邪 薪械 褉邪斜芯褌邪械褌 (薪褍卸械薪 HTTPS)");
+    alert("❌ Камера не работает. Нужен HTTPS или доступ запрещён.");
   }
 }
 
-// 鉀� 褋褌芯锌
+// ⛔ стоп
 function stopCamera(){
   clearInterval(camInt);
   overlay.classList.remove('active');
+
   if(video.srcObject){
     video.srcObject.getTracks().forEach(t=>t.stop());
   }
