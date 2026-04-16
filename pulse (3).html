@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Pulse Monitor</title>
+
+<style>
+    body {
+        margin: 0;
+        background: #0b0b0b;
+        color: white;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+    }
+
+    video {
+        width: 300px;
+        height: 225px;
+        border-radius: 12px;
+        transform: scaleX(-1);
+        margin-bottom: 20px;
+    }
+
+    #pulse {
+        font-size: 48px;
+        font-weight: 600;
+    }
+
+    #status {
+        opacity: 0.7;
+        margin-top: 10px;
+    }
+</style>
+</head>
+
+<body>
+
+<video id="video" autoplay></video>
+<canvas id="canvas" width="300" height="225" style="display:none;"></canvas>
+
+<div id="pulse">--</div>
+<div id="status">§°§Ø§Ú§Õ§Ñ§ß§Ú§Ö §Ü§Ñ§Þ§Ö§â§í...</div>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const pulseEl = document.getElementById("pulse");
+const statusEl = document.getElementById("status");
+
+let values = [];
+let lastBeatTime = Date.now();
+
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" }
+        });
+        video.srcObject = stream;
+        statusEl.textContent = "§±§à§Ý§à§Ø§Ú §á§Ñ§Ý§Ö§è §ß§Ñ §Ü§Ñ§Þ§Ö§â§å §Ú §ß§Ö §Õ§Ó§Ú§Ô§Ñ§Û§ã§ñ";
+        analyze();
+    } catch (e) {
+        statusEl.textContent = "§¯§Ö§ä §Õ§à§ã§ä§å§á§Ñ §Ü §Ü§Ñ§Þ§Ö§â§Ö";
+        console.error(e);
+    }
+}
+
+function getAvgRed(data) {
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        sum += data[i]; // red channel
+    }
+    return sum / (data.length / 4);
+}
+
+function analyze() {
+    setInterval(() => {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const red = getAvgRed(frame.data);
+
+        values.push(red);
+
+        if (values.length > 50) values.shift();
+
+        if (values.length === 50) {
+            let diffs = 0;
+
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] > values[i - 1]) diffs++;
+            }
+
+            const now = Date.now();
+
+            // §Ô§â§å§Ò§Ñ§ñ §à§è§Ö§ß§Ü§Ñ §á§å§Ý§î§ã§Ñ
+            if (now - lastBeatTime > 3000) {
+                let bpm = Math.round(diffs * 1.2);
+                if (bpm > 40 && bpm < 180) {
+                    pulseEl.textContent = bpm + " BPM";
+                }
+                lastBeatTime = now;
+            }
+        }
+
+    }, 100);
+}
+
+startCamera();
+</script>
+
+</body>
+</html>
